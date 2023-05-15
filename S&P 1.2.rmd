@@ -1,0 +1,575 @@
+---
+title: S&P 500 Analsis
+date: 12/05/2023
+output: pdf_document
+---
+
+
+
+# Introduction
+
+This is a draft of a project that will analyze the stock prices of the S&P 500 companies. 
+The goal is to find the best and worst performing sectors within the market each year. 
+The data is from Kaggle and can be found here: https://www.kaggle.com/datasets/alexanderkuznetsovow/s-and-p-500-companies-price-dynamics
+
+# 1. Data Understanding
+
+-   This phase aims to break down the tasks into the following categories:
+
+    -   Data collection
+
+    -   Describe data
+
+    -   Explore data
+
+### Loading packages
+```{r, results='hide'}
+install.packages("languageserver", repos = "http://cran.us.r-project.org")
+install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+install.packages("knitr", repos = "http://cran.us.r-project.org")
+
+
+library(tidyverse)
+library(knitr)
+library(RColorBrewer)
+```
+
+
+
+### Loading data
+```{r}
+# Loading data and assign it to stocks
+stocks <- read.csv("sp500_prices.csv")
+
+# Printing the first 6 rows of the data
+head(stocks)
+
+dim(stocks)
+```
+
+-   There are 31,280 observations (rows) and 16 variables (columns) in the dataset
+
+
+### Data Description
+
+```{r}
+## Summary statistics
+summary(stocks)
+```
+
+| Column name       | Description                                                   | Data Type         |
+|----------------|-----------------------------------------|----------------|
+| X                 | Position in the data set                                      | Integer           |
+| Company           | Stock symbol in the market                                    | Character         |
+| Security          | Stock's company name                                          | Character         |
+| GICS.Sector       | Sector in which the company operates                          | Character         |
+| GICS.Sub.Industry | Specific industry within the sector that the company operates | Character         |
+| Founded           | Date company was founded                                      | Character         |
+| Open              | Stock's opening price                                         | Numeric - Double  |
+| High              | Stock's highest trading price in that day                     | Numeric - Double  |
+| Low               | Stock's lowest trading price in that day                      | Numeric - Double  |
+| Close             | Stock's closing price                                         | Numeric - Double  |
+| Volume            | Volume/ amount of shares traded during the day                | Numeric - Double  |
+| Dividends         | Amount paid to the company's shareholders                     | Numeric - Double  |
+| Stock.Splits      | Splitting the number of company stocks in circulation         | Numeric - Double  |
+| Year              | Trading year                                                  | Numeric - Integer |
+| Month             | Trading month                                                 | Numeric - Integer |
+| Day               | Trading day - average                                         | Numeric - Integer |
+: Description of variables in the dataset
+
+
+
+```{r}
+colSums(is.na(stocks))
+```
+
+- There are no missing values in the dataset
+- However despite the data looking good for analysis, there are some issues with the data that need to be addressed:
+    We'll swap the column names of "company" and "security" to make the data more readable
+
+```{r}
+# Swapping the column names of "company" and "security"
+stocks <- stocks %>%
+  rename(Company = Security,
+        Security = Company)
+
+# Printing the first 6 rows of the data
+head(stocks)
+```
+
+## Variable Analsis
+
+### 1. Companies
+
+```{r}
+# Number of companies in each sector
+
+companies <-
+    stocks %>%
+    group_by(GICS.Sector) %>%
+    summarize(Num_companies = n_distinct(Company)) %>%
+    arrange(desc(Num_companies))
+
+head(companies)
+
+# Number of companies in the dataset
+
+companies %>%
+  summarize(Sum_companies = sum(Num_companies))
+
+# Plotting the number of companies in each sector
+
+ggplot(companies, aes(reorder(GICS.Sector, -Num_companies), Num_companies)) +
+    geom_bar(stat = "identity",
+                fill = "steelblue") +
+        theme_classic() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Number of companies in each sector",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Sector",
+            y = "Number of companies") +
+        geom_text(aes(label = Num_companies), vjust = 1.5,
+            color = "white", size = 3.5)
+```
+
+- There are 501 companies in the S&P 500 dataset and the sector with the most companies is the Industries sector with 73 companies, 
+closely followed by the Financials sector with 72 companies
+
+### 2. Sectors
+
+```{r}
+# Number of shares traded in each sector
+
+sectors <-
+    stocks %>%
+    group_by(GICS.Sector) %>%
+    count(GICS.Sector) %>%
+    arrange(desc(n))
+
+ggplot(sectors, aes(reorder(GICS.Sector, -n), n)) +
+  geom_bar(stat = "identity",
+            fill = "steelblue") +
+    theme_classic() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+  labs(title = "Distribution of shares traded by sector",
+        subtitle = "Analysis from Jan 2018 - Mar 2023",
+        x = "Sector",
+        y = "Total shares traded") +
+    geom_text(aes(label = n), vjust = 1.5, color = "white", size = 3.5)
+```
+
+### 3. Sub-Industries
+
+```{r}
+
+# Number of companies in each sub-industry
+head(stocks)
+
+sub_industries <-
+    stocks %>%
+    group_by(GICS.Sector) %>%
+    summarize(Sub_sectors = n_distinct(GICS.Sub.Industry)) %>%
+    arrange(desc(Sub_sectors))
+
+ggplot(sub_industries, aes(reorder(GICS.Sector, -Sub_sectors), Sub_sectors)) +
+    geom_bar(stat = "identity",
+                fill = "steelblue") +
+        theme_classic() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Number of sub-industries in each sector",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Sector",
+            y = "Number of sub-industries") +
+        geom_text(aes(label = Sub_sectors), vjust = 1.5,
+            color = "white", size = 3.5)
+```
+
+# 2. Data Preparation
+
+-   This phase aims to break down the tasks into the following categories:
+
+    -   Select data
+
+    -   Clean data
+
+    -   Distribution of data
+
+
+### Selecting data
+    
+```{r}
+
+# Selecting the columns we need for analysis
+
+stocks_df <-
+    stocks %>%
+    select(Security, Company, GICS.Sector, GICS.Sub.Industry,
+        Open, High, Low, Close, Volume, Year, Month, Day)
+
+head(stocks_df)
+```
+
+### Cleaning & Distribution of data
+
+```{r}
+# Checking for missing values
+
+colSums(is.na(stocks_df))
+
+# There are no missing values in the dataset
+
+# Checking for outliers
+
+stocks_df %>%
+    select(Open, High, Low, Close, Volume) %>%
+    summary()
+
+# The maximum values for Open and Close are rather high and need to be investigated
+# Distribution of the opening/ starting price of each stock
+ggplot(stocks_df, aes(GICS.Sector, Open)) +
+    geom_violin() +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Distribution of Close prices by sector",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Sector",
+            y = "Close price ($)")
+
+# Distribution of Highest price traded 
+ggplot(stocks_df, aes(GICS.Sector, High)) +
+    geom_violin() +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Distribution of Highest prices by sector",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Sector",
+            y = "High price ($)")
+
+# Distribution of Lowest price traded 
+ggplot(stocks_df, aes(GICS.Sector, Low)) +
+    geom_violin() +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Distribution of Lowest prices by sector",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Sector",
+            y = "Low price ($)")
+
+# Distribution of Closing prices traded 
+ggplot(stocks_df, aes(GICS.Sector, Close)) +
+    geom_violin() +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    labs(title = "Distribution of Closing prices by sector",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Sector",
+            y = "Close price ($)")
+
+# Checking the rows with the maximum values for Open and Close
+
+stocks_df %>%
+    filter(GICS.Sector == "Consumer Discretionary",
+            Open >= 1000 | Close >= 1000) %>%
+    summarize(n = n_distinct(Company))
+
+```
+
+- We see that there are 4 companies with high Open and Close prices, we will investigate further
+
+```{r}
+# Analyzing the companies with high Open and Close prices
+
+stocks_df %>%
+    filter(GICS.Sector == "Consumer Discretionary",
+            Open >= 1000 | Close >= 1000) %>%
+    group_by(Company) %>%
+    summarize(Min_Open = min(Open),
+            Max_Close = max(Close))
+```
+
+- The analysis shows that AutoZone, Booking Holdings, Chipotle, & NVR do have relatively high Open and
+ Close share prices within the time period stated in the dataset. After confirming this on Yahoo Finance, 
+we can conclude that the data is correct and there are no outliers.
+
+
+# 3. Data Analysis
+
+```{r}
+
+# Creating a new column for the average price of each stock
+
+stocks_df <-
+    stocks_df %>%
+    mutate(OHLC_Avg = (Open + High + Low + Close) / 4)
+
+head(stocks_df)
+
+# Creating a new column for the total value of shares traded for each stock
+
+stocks_df_1 <-
+    stocks_df %>%
+    mutate(Total_value = OHLC_Avg * Volume,
+        Total_value_MMM = Total_value / 1000000) %>%
+    select(Security, Company, GICS.Sector, GICS.Sub.Industry,
+         Volume, Total_value_MMM, Year, Month, Day)
+
+head(stocks_df_1)
+
+# Creating a new column for the total value of shares traded for each sector
+
+Yearly_sector_shares <-
+    stocks_df_1 %>%
+    group_by(GICS.Sector, Year) %>%
+    summarize(Total_value_sector_MMM = sum(Total_value_MMM))
+
+kable(Yearly_sector_shares, caption = "Total value of shares traded for each sector (in millions of dollars)")
+
+# Creating a new column for the total value of shares traded for each sub-industry
+
+Sub_industries_value <-
+    stocks_df_1 %>%
+    group_by(GICS.Sub.Industry, Year) %>%
+    mutate(Total_value_sub_industry = sum(Total_value_MMM))
+
+head(Sub_industries_value)
+
+# Creating a new column for the total value of shares traded for each year
+
+Total_value_year <-
+    stocks_df_1 %>%
+    group_by(Year) %>%
+    mutate(Total_value_year = sum(Total_value_MMM))
+
+head(Total_value_year)
+```
+
+# 4. Data Visualization
+
+```{r}
+
+# Plotting the yearly total value of shares traded for each sector
+
+ggplot(Yearly_sector_shares, aes(x = Year, y = Total_value_sector_MMM,
+        color = GICS.Sector)) +
+    geom_line() +
+    geom_point() +
+    theme_classic() +
+    scale_color_brewer(palette = "Paired") +
+    labs(title = "Total value of shares traded for each sector (in millions of dollars)",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Year",
+            y = "Total value of shares traded (in millions of dollars)",
+            color = "Sector")
+
+# Plotting the yearly total value of shares traded for each sub-industry
+
+ggplot(Sub_industries_value, aes(x = Year, y = Total_value_sub_industry,
+        color = GICS.Sub.Industry)) +
+    geom_line() +
+    geom_point() +
+    theme_classic() +
+    scale_color_brewer(palette = "Paired") +
+    labs(title = "Total value of shares traded for each sub-industry (in millions of dollars)",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Year",
+            y = "Total value of shares traded (in millions of dollars)",
+            color = "Sub-industry")
+
+# Plotting the yearly total value of shares traded for each year
+
+ggplot(Total_value_year, aes(x = Year, y = Total_value_year)) +
+    geom_area(alpha = 0.5,
+            fill = "steelblue") +
+    theme_classic() +
+    labs(title = "Total value of shares traded for each year (in millions of dollars)",
+            subtitle = "Analysis from Jan 2018 - Mar 2023",
+            x = "Year",
+            y = "Total value of shares traded (in millions of dollars)")
+
+# Most traded stocks in each sector
+
+Most_traded_stocks <-
+    stocks_df_1 %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Most_traded_stocks, caption = "Most traded stocks in each sector (in millions of dollars)")
+
+# Least traded stocks in each sector
+
+Least_traded_stocks <-
+    stocks_df_1 %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(Total_value_MMM) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Least_traded_stocks, caption = "Least traded stocks in each sector (in millions of dollars)")
+
+# Most traded stocks in each sector in 2018
+
+Most_traded_stocks_2018 <-
+    stocks_df_1 %>%
+    filter(Year == 2018) %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Most_traded_stocks_2018, caption = "Most traded stocks in each sector in 2018 (in millions of dollars)")
+
+# Most traded stocks in each sector in 2019
+
+Most_traded_stocks_2019 <-
+    stocks_df_1 %>%
+    filter(Year == 2019) %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Most_traded_stocks_2019, caption = "Most traded stocks in each sector in 2019 (in millions of dollars)")
+
+# Most traded stocks in each sector in 2020
+
+Most_traded_stocks_2020 <-
+    stocks_df_1 %>%
+    filter(Year == 2020) %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Most_traded_stocks_2020, caption = "Most traded stocks in each sector in 2020 (in millions of dollars)")
+
+# Most traded stocks in each sector in 2021
+
+Most_traded_stocks_2021 <-
+    stocks_df_1 %>%
+    filter(Year == 2021) %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Most_traded_stocks_2021, caption = "Most traded stocks in each sector in 2021 (in millions of dollars)")
+
+# Most traded stocks in each sector in 2022
+
+Most_traded_stocks_2022 <-
+    stocks_df_1 %>%
+    filter(Year == 2022) %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Most_traded_stocks_2022, caption = "Most traded stocks in each sector in 2022 (in millions of dollars)")
+
+# Most traded stocks in each sector in 2023
+
+Most_traded_stocks_2023 <-
+    stocks_df_1 %>%
+    filter(Year == 2023) %>%
+    group_by(GICS.Sector, Company) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(GICS.Sector) %>%
+    slice(1)
+
+kable(Most_traded_stocks_2023, caption = "Most traded stocks in each sector in 2023 (in millions of dollars)")
+
+# Best performing sectors in each year
+
+Best_performing_sectors <-
+    stocks_df_1 %>%
+    group_by(GICS.Sector, Year) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(Year) %>%
+    slice(1)
+
+kable(Best_performing_sectors, caption = "Best performing sectors in each year (in millions of dollars)")
+
+# Worst performing sectors in each year
+
+Worst_performing_sectors <-
+    stocks_df_1 %>%
+    group_by(GICS.Sector, Year) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(Total_value_MMM) %>%
+    group_by(Year) %>%
+    slice(1)
+
+kable(Worst_performing_sectors, caption = "Worst performing sectors in each year (in millions of dollars)")
+
+# Best performing sub-industries in each year
+
+Best_performing_sub_industries <-
+    stocks_df_1 %>%
+    group_by(GICS.Sub.Industry, Year) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(Year) %>%
+    slice(1)
+
+kable(Best_performing_sub_industries, caption = "Best performing sub-industries in each year (in millions of dollars)")
+
+# Worst performing sub-industries in each year
+
+Worst_performing_sub_industries <-
+    stocks_df_1 %>%
+    group_by(GICS.Sub.Industry, Year) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(Total_value_MMM) %>%
+    group_by(Year) %>%
+    slice(1)
+
+kable(Worst_performing_sub_industries, caption = "Worst performing sub-industries in each year (in millions of dollars)")
+
+# Best performing stocks in each year
+
+Best_performing_stocks <-
+    stocks_df_1 %>%
+    group_by(Company, Year) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(desc(Total_value_MMM)) %>%
+    group_by(Year) %>%
+    slice(1)
+
+kable(Best_performing_stocks, caption = "Best performing stocks in each year (in millions of dollars)")
+
+# Worst performing stocks in each year
+
+Worst_performing_stocks <-
+    stocks_df_1 %>%
+    group_by(Company, Year) %>%
+    summarize(Total_value_MMM = sum(Total_value_MMM)) %>%
+    arrange(Total_value_MMM) %>%
+    group_by(Year) %>%
+    slice(1)
+
+kable(Worst_performing_stocks, caption = "Worst performing stocks in each year (in millions of dollars)")
+```
+
+# 5. Conclusion
+
+Based on the analysis, we can conclude that the **best performing sector** in the S&P 500 market is 
+the **Information Technology sector**, which has consistently been the best performing sector since 2018. Additionally,
+the **best performing sub-industry** is the  a mix of **Semiconductors, and Automobile Manufacturers**.
+
+The worst performing sectors in the S&P 500 is a mix of Real Estate, Materials and Utilities. However, Real Estate seems 
+to be the worst as it has been the lowest traded in 4 out of the 5 years analyzed.
+
+The best performing stock in the S&P 500 was Amazon in the years 2018 and 2019, but was overtaken by Tesla which has maintained
+its position as the best performing stock (total shares traded) in the S&P 500 since 2020.
+

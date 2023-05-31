@@ -1,0 +1,442 @@
+---
+title: "Analysis of the Price Volatility and Trading Volume Patterns of Major Tech Giants"
+author: "Ronald Gachoka"
+date: "2023-04-19"
+output: 
+  pdf_document: 
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\pagebreak
+
+# Introduction
+
+## Project Summary
+
+-   This coursework project aims to find out the price volatility patterns and insights on trading activity and liquidity of the major tech giants within a 5-year period. This project analyze the average stock prices and compare them against each other that we may see which tech giant stocks outperformed or under performed compared to their competitors.
+
+-   Secondly, we'll analyze the volume traded that we can have a general idea on the liquidity of the companies. Price movements are a good indicator but the volume of stocks traded shows how enthusiastic the market and traders are regarding the stocks.
+
+## Research Question & Objectives
+
+-   Research Topic - Analysis of Price Volatility and Trading Volume Patterns of the Major Tech Giants
+
+-   Objectives
+
+    -   How does the price volatility of the tech giants compare against each other over a 5 year time period
+
+    -   Are there any noticeable trends in the volume of stocks traded
+
+    -   Is there any correlation between the volume traded and price movements
+
+    -   Which big tech stock is the best investment choice?
+
+## Data Background
+
+-   This coursework will analyze the big_tech_stock_prices dataset which can be found on Kaggle.
+
+-   This projects want to analyze and analyze how big tech stock prices compare against each other and find out which big tech stocks appear to be the best to invest in.
+
+### Breakdown of companies to be analyzed
+
+-   The dataset contains 14 big tech companies all in different industries from Google, Apple, IBM, Netflix amongst several more.
+
+-   From the big tech companies, this project decided to focus on the large big tech companies formally known as FAANG but rebranded to MAAMA (Duggan & Curry, 2023).
+
+    -   M - Meta
+
+    -   A - Alphabet (Google parent company)
+
+    -   A - Apple
+
+    -   M - Microsoft
+
+    -   A - Amazon
+
+\pagebreak
+
+# Analysis
+
+```{r}
+## Loading packages
+
+library(tidyverse)
+library(knitr)
+library(zoo)
+library(gghighlight)
+
+```
+
+```{r}
+## Loading in files
+stocks <- read.csv("big_tech_stock_prices.csv")
+stock_companies <- read.csv("big_tech_companies.csv")
+
+```
+
+```{r}
+## Overview of data
+glimpse(stocks)
+glimpse(stock_companies)
+```
+
+-   From the glimpse function we are able to see multiple important details about our data such as:
+
+    -   Number of rows and columns in each dataset
+
+        -   There are 45,088 observations (rows) and 9 columns in our stocks data
+
+        -   There are 14 rows and 3 columns in the stock_companies dataset
+
+    -   Secondly, the type of variables in each datasets are as follows
+
+-   From the above overview of the data, the stock_companies can be used to add more information to the stocks data set. To make analysis easier, we'll combine both data sets.
+
+## Data Types
+
+| Data Labels  | Explanation                                           | Category Type                       |
+|:----------------:|---------------------------------|----------------------|
+|      X       | Row number                                            | Numerical - Discrete                |
+| Stock_symbol | Companies stock symbol                                | Categorical - Nominal               |
+|   Company    | Company name                                          | Categorical - Nominal               |
+|     Date     | Trading date                                          | Categorical - Ordinal (mislabelled) |
+|     Open     | Stock's opening price                                 | Numerical - Continuous              |
+|     High     | Highest trading day price                             | Numerical - Continuous              |
+|     Low      | Lowest trading day price                              | Numerical - Continuous              |
+|    Close     | Stock's closing price                                 | Numerical - Continuous              |
+|  Adj_close   | Closing price adjusted for dividends and stock splits | Numerical - Continuous              |
+|    Volume    | Volume of shares traded in the day                    | Numerical - Continuous              |
+
+: Characteristic of Variables
+
+```{r}
+## Combining both datasets
+
+stocks_df <-
+  stocks %>% 
+  inner_join(stock_companies, by = "stock_symbol")
+
+kable(stocks_df[1:5,], caption = "Overview of stocks_df")
+```
+
+```{r}
+## Summary statistics of the dataframe
+summary(stocks_df)
+
+
+## Checking for NA values in each colum
+colSums(is.na(stocks_df))
+```
+
+-   Before data cleaning, we conduct summary statistics to see additional information on the data
+
+    -   No column contains NA values
+
+    -   *X.x* and *X.y* will need to be dropped as they provide no relevant information
+
+    -   *Stock_symbol* is a character string
+
+    -   *Date* as mentioned earlier will need to be formatted
+
+    -   *Open, High, Low, Close* & *Adj_Close* are numerical values with no NA or incorrect values
+
+    -   *Volume* which is the volume traded contains very large numbers and will be formatted down to make reading and understanding it much easier
+
+    -   *Company* contains just character strings and no mislabeled data
+
+\pagebreak
+
+## Data Cleaning
+
+```{r}
+## Changing the date format
+
+stocks_df$date <- ymd(stocks_df$date)
+class(stocks_df$date)
+```
+
+```{r}
+## Dropping X.x and X.y
+stocks_df <- 
+  stocks_df %>% 
+  select(date, stock_symbol, company, open, high, low, close, adj_close, volume)
+
+head(stocks_df)
+```
+
+-   I used the *select* function to drop columns and listed the columns I wanted to keep and arranged them in an order that would be best for further analysis.
+
+```{r}
+## Creating a new colume column in millions
+
+stocks_df <-
+  stocks_df %>% 
+  mutate(volume_mm = volume / 1000000)
+
+head(stocks_df)
+```
+
+## Initial Data Analysis
+
+This section will briefly analyze the date to draw initial insights from the data before we answer our research question.
+
+We'll also filter our data to select the stock companies we want to analyze
+
+```{r}
+## Min and Max dates for all stocks
+
+stocks_df %>% 
+  group_by(stock_symbol) %>% 
+  summarize(Min_date = min(date),
+            Max_date = max(date))
+```
+
+-   From this we see that all stocks except META had a similar closing day, as our analysis and research will include META. I'll drop the extra values after "2022-12-29" that our analysis will be even.
+
+```{r}
+## FIltering stocks to analyze and the appropriate timeframe
+filtered_df <- 
+  stocks_df %>% 
+  filter(stock_symbol %in% c("AAPL","META","AMZN","MSFT","GOOGL"),
+         date >= "2018-01-01" & date <= "2022-12-29")
+```
+
+```{r}
+## Calculating their individual min and max dates
+filtered_df %>% 
+  group_by(stock_symbol) %>% 
+  summarize(min_date = min(date),
+            max_date = max(date))
+```
+
+# Results & Findings
+
+## Data Analysis - Price Volatility
+
+### Monthly stock price average
+
+-   This section will calculate the average monthly price of the stocks over the past 5 years to see if there's a trend amongst all stocks.
+-   The benefit of analyzing the price volatility is to understand the risk associated with the stock (Hayes, 2023)
+
+```{r}
+Apple_df <- filtered_df %>% 
+  filter(stock_symbol == "AAPL")
+
+# Converting date to time-based object
+Apple_df$month <- as.yearmon(Apple_df$date)
+
+# Calculating monthly average
+Apple_avg <- aggregate(close ~ month, data = Apple_df, FUN = mean)
+
+
+kable(Apple_avg[1:6,], caption = "Brief overview of Apple's average monthly close ")
+```
+
+```{r}
+## Apple monthly stock average
+ggplot(Apple_avg, aes(month, close)) +
+  geom_line() +
+  geom_smooth(se = FALSE, linewidth = 0.4, color = "lightblue") +
+  labs(title = "Apple's Monthly Average Stock Price",
+       subtitle = "Analysis from Jan 2018 - Dec 2022",
+       x = "Month",
+       y = "Average Close Price",) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        )
+```
+
+-   The blue line is added to show the general trend the stock price is moving.
+-   We can see that from Jan 2019 there was a gradual rise in Apple's closing price and evened out in 2022.
+
+```{r}
+avg_df <-
+  filtered_df %>% 
+  mutate(Month = as.yearmon(date)) %>% 
+  group_by(stock_symbol, Month) %>% 
+  summarize(Avg_close = mean(close))
+```
+
+```{r}
+## Compatative share prices
+ggplot(avg_df, aes(Month, Avg_close, color = stock_symbol)) +
+  geom_line() +
+  labs(title = "Monthly Average Stock Prices",
+       subtitle = "Analysis from Jan 2018 - Dec 2022",
+       y = "Average Close Price ($)") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_color_brewer(palette = "Dark2")
+  
+```
+
+-   There is a clear trend in the share prices of the above stocks as all started rising around the same time in 2020 and this is most likely due to Covid-19.
+
+-   When looking at the trends we can see on the graph, META was out performing other tech giants until mid-2021 when there was a sudden shift and their share prices took a sharp nose-drive much greater than other tech giants. It will be beneficial to conduct further analysis and identify what factor caused the sharp drop but that is outside the scope of this project.
+
+### Yearly Stock Price Changes
+
+```{r}
+## What are the yearly averages?
+
+yearly_avg <- filtered_df %>% 
+  mutate(Year = format(date, "%Y")) %>% 
+  group_by(stock_symbol, Year) %>% 
+  summarize(Year_Avg = mean(close))
+
+
+ggplot(yearly_avg, aes(Year, Year_Avg, fill = stock_symbol)) +
+  geom_col(position = "fill") +
+  labs(title = "Comparative yearly stock price averages",
+       subtitle = "Analysis from 2018 - 2022",
+       y = "Yearly Average") +
+  scale_fill_brewer(palette = "Dark2") +
+  theme_classic()
+```
+
+-   From the above visualization we can see the comparative trend of the stocks and easily compare them against each other.
+
+-   We see that Microsoft (MSFT) has been steadily growing within the past 5 years, while META was slowly declining over the years but at a small rate until 2021 and 2022.
+
+-   Similarly to Microsoft, Apple has also been steadily growing over the years.
+
+### 5 Year Stock Percentage Change
+
+```{r}
+
+df2 <- 
+  filtered_df %>% 
+  group_by(stock_symbol) %>% 
+  summarize(first_close = first(close),
+            last_close = last(close),
+            pct_change = ((last_close / first_close) -1) *100) %>% 
+  arrange(desc(pct_change))
+
+head(df2)
+
+
+
+ggplot(df2, aes(reorder(stock_symbol, pct_change), pct_change)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  geom_text(aes(label = paste(round(pct_change), "%")), 
+            hjust = 1.1, 
+            color = "white") +
+  labs(title = "5 Yr Percentage Change in Closing Price",
+       subtitle = "Analysis from Jan 2018 - Dec 2022",
+       x = "",
+       y = "Percentage Change (%)") +
+  theme_classic() +
+  gghighlight(pct_change > 100)
+
+  
+```
+
+-   From the above chart we see that only 2 companies (Apple and Microsoft) had a closing price after 5 years which was greater than 100%.
+
+-   META's closing price after 5 years lost 34% of its original value.
+
+## Data Analysis - Trading Volume
+
+-   This section of the analysis will want to analyze the volume of shares traded (this includes shares bought and sold).
+
+-   What we expect to see based of our previous analysis is a large volume of shares traded in MSFT, APPL.
+
+    -   META on the other hand we expect to see a declining faith on the stock therefore a declining in the amount of shares traded.
+
+-   Volume traded can also be an indicator on whether the market is bullish or bearish (Schwab.com, 2021).
+
+```{r}
+## Average volume of stocks traded
+
+avg_volume <-
+  filtered_df %>% 
+  mutate(Month = as.yearmon(date)) %>% 
+  group_by(stock_symbol, Month) %>% 
+  summarize(Avg_vol = mean(volume)) %>% 
+  mutate(volume_traded = Avg_vol / 1000000)
+
+
+ggplot(avg_volume, aes(Month, volume_traded, color = stock_symbol)) +
+  geom_line() +
+  labs(title = "Monthly Average Volume Trends",
+       subtitle = "Analysis from Jan 2018 - Dec 2022",
+       y = "Average volume traded (MM)") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_color_brewer(palette = "Dark2")
+
+```
+
+-   We see that in the year 2020 there was a decline in shares traded for several stocks except META.
+
+-   META's average volume trends is quite interesting specifically when you compare it to the average stock prices over the past 5 years.
+
+    -   There was a sharp rise in their share price in 2020 and again in 2021, but the volume of share traded didn't increase at the same rate.
+
+### Correlation Between Volume and Price
+
+```{r}
+## Correlation between volume traded and average price?
+
+vol_close_df <- 
+  filtered_df %>% 
+  mutate(Month = as.yearmon(date)) %>% 
+  group_by(stock_symbol, Month) %>% 
+  summarize(Avg_close = mean(close),
+            Avg_vol = mean(volume))
+
+group_cor <- vol_close_df %>% 
+  group_by(stock_symbol) %>% 
+  summarize(Correlation = cor(Avg_close, Avg_vol))
+
+
+kable(group_cor, caption = "Correlation between Average Price and Volume")
+
+```
+
+```{r}
+ggplot(vol_close_df, aes(Avg_close, Avg_vol)) +
+  geom_hex() +
+  facet_wrap(~stock_symbol) +
+  labs(title = "Correlation between volume and price",
+       x = "Average close price ($)") +
+  theme(plot.title = element_text(hjust = 0.5))
+  
+
+  
+```
+
+-   Based of the above analysis, we see that there is no correlation between price and volume traded
+
+-   This is different from what one would expect as when the price increases, volume would also increase as people want to invest in stocks where they can possibly make a profit.
+
+\pagebreak
+
+# Conclusion
+
+-   From the above analysis, there is a similar growth trend in the big tech's closing price from 2018 to 2021 with a slight dip in 2020 but just momentarily. Towards the end of 2021, there was a similar trend as well with stocks losing their sustained growth. However, the average drop in META's share price is much larger than any other big tech stock.
+
+-   Based of the 5-year percentage change in their share prices, Microsoft and Apple outperformed all other stocks with an increase of 180% and 201% respectively.
+
+-   There was a noticeable trend in the volume of shares traded with similar periods of high volume and low volume traded. However, this project revealed that there was no correlation between the price of the stocks and volume traded.
+
+-   Based of the project conducted and results shown, Apple and META appear to be the stocks that outperformed and would probably be the best stocks to invest in. However, it's important that more analysis needs to be conducted before anyone invests in the stocks.
+
+# References:
+
+-   Duggan, W. and Curry, B. (2023) *What happened to faang stocks? they became mamaa stocks*, *Forbes*. Forbes Magazine. Available at: <https://www.forbes.com/advisor/investing/faang-stocks-mamaa/> (Accessed: April 25, 2023). 
+
+-   Hayes, A. (2023) *Volatility: Meaning in finance and how it works with stocks*, *Investopedia*. Investopedia. Available at: <https://www.investopedia.com/terms/v/volatility.asp> (Accessed: April 25, 2023).
+
+-   Schwab.com (2021) *Trading volume as a market indicator*, *Schwab Brokerage*. Available at: <https://www.schwab.com/learn/story/trading-volume-as-market-indicator> (Accessed: April 25, 2023). 

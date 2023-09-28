@@ -1,4 +1,4 @@
-# S&P 500 Sector Analysis
+# S&P 500 Big Tech Analysis
 ![image](https://github.com/rongachoka/SP-500-Sector-Analysis/assets/70327027/cf19250f-8a39-439a-b9c9-bc25e0f0ada5)
 
 ## Table of Contents

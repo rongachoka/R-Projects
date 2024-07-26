@@ -27,3 +27,9 @@ This project is aimed to shed light to the S&P 500 market from a beginners point
 - **Data Analysis** -> The goal of this section was to derive as much insight from our dataset in line with our project objectives
 - **Data Visualization** -> This section aims to visualize our findings from the Data Analysis section
 - **Conclusion** -> Involves drawing conclusions from the analysis and visualizations generated.
+
+## Overview of Winners & Losers (2018-2022)
+
+<img width="848" alt="Screenshot 2024-07-26 at 10 53 19" src="https://github.com/user-attachments/assets/26560c99-5777-437b-b053-fecf1436cff0">
+
+
